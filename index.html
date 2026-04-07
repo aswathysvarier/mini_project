@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DeepShield — Login</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body class="auth-page">
+
+  <div class="auth-card">
+    <div class="logo">🛡️</div>
+    <h1>DeepShield</h1>
+    <p class="subtitle">AI-powered deepfake detection with safety support</p>
+
+    <div id="error-msg" class="error-msg hidden"></div>
+
+    <!-- Login Form -->
+    <div id="login-section">
+      <input type="email"    id="email"    placeholder="Email address" />
+      <input type="password" id="password" placeholder="Password" />
+      <button id="login-btn"  onclick="loginUser()">Sign In</button>
+      <button id="google-btn" class="google-btn" onclick="googleLogin()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"/> Sign in with Google
+      </button>
+      <p class="toggle-link">No account? <a href="#" onclick="toggleForm()">Sign up</a></p>
+    </div>
+
+    <!-- Register Form -->
+    <div id="register-section" class="hidden">
+      <input type="text"     id="reg-name"     placeholder="Full name" />
+      <input type="email"    id="reg-email"    placeholder="Email address" />
+      <input type="password" id="reg-password" placeholder="Password (min 6 chars)" />
+      <button onclick="registerUser()">Create Account</button>
+      <p class="toggle-link">Have an account? <a href="#" onclick="toggleForm()">Sign in</a></p>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="/static/js/firebase-config.js"></script>
+  <script src="/static/js/auth.js"></script>
+</body>
+</html>

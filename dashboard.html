@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DeepShield — Dashboard</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-logo">🛡️ DeepShield</div>
+    <div class="nav-right">
+      <span id="user-email" class="user-email"></span>
+      <button class="logout-btn" onclick="logoutUser()">Sign Out</button>
+    </div>
+  </nav>
+
+  <main class="container">
+
+    <!-- Upload Section -->
+    <section class="card upload-card">
+      <h2>Upload Image for Analysis</h2>
+      <p class="hint">Supported: JPG, PNG, WEBP — Max 10MB</p>
+
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div id="drop-text">
+          <span class="upload-icon">📁</span>
+          <p>Click or drag & drop an image here</p>
+        </div>
+        <img id="preview" class="hidden"/>
+      </div>
+      <input type="file" id="file-input" accept="image/*" onchange="previewImage(event)" hidden/>
+
+      <button id="analyze-btn" onclick="analyzeImage()" disabled>Analyze Image</button>
+    </section>
+
+    <!-- Result Section -->
+    <section class="card result-card hidden" id="result-section">
+      <h2>Detection Result</h2>
+
+      <div id="verdict-badge" class="verdict-badge"></div>
+
+      <div class="prob-bars">
+        <div class="prob-row">
+          <span>Real</span>
+          <div class="bar-track">
+            <div class="bar real-bar" id="real-bar"></div>
+          </div>
+          <span id="real-pct">0%</span>
+        </div>
+        <div class="prob-row">
+          <span>Fake</span>
+          <div class="bar-track">
+            <div class="bar fake-bar" id="fake-bar"></div>
+          </div>
+          <span id="fake-pct">0%</span>
+        </div>
+      </div>
+
+      <div id="warning-box" class="warning-box hidden">
+        ⚠️ This image appears to be AI-generated or manipulated. If this content is being misused,
+        please download the report and contact the support helplines below.
+      </div>
+
+      <button id="pdf-btn" class="pdf-btn hidden" onclick="downloadReport()">📄 Download PDF Report</button>
+    </section>
+
+    <!-- Safety Resources -->
+    <section class="card safety-card" id="safety-section">
+      <h2>🆘 Safety & Support Resources</h2>
+      <p class="hint">Reach out to these organisations if you need help with deepfake misuse or online harassment.</p>
+
+      <div class="resources-grid">
+
+        <div class="resource-group">
+          <h3>🇮🇳 India</h3>
+          <div class="resource-item">
+            <strong>National Cyber Crime Helpline</strong>
+            <span class="phone">📞 1930</span>
+            <a href="mailto:cybercrime@gov.in">cybercrime@gov.in</a>
+            <a href="https://cybercrime.gov.in" target="_blank">cybercrime.gov.in ↗</a>
+          </div>
+          <div class="resource-item">
+            <strong>NCW Women Helpline</strong>
+            <span class="phone">📞 181</span>
+            <a href="mailto:ncw@nic.in">ncw@nic.in</a>
+            <a href="https://ncw.nic.in" target="_blank">ncw.nic.in ↗</a>
+          </div>
+          <div class="resource-item">
+            <strong>Cyber Dost (MHA)</strong>
+            <span class="phone">📞 N/A</span>
+            <a href="mailto:cyberdost@mha.gov.in">cyberdost@mha.gov.in</a>
+            <a href="https://cyberdost.mha.gov.in" target="_blank">cyberdost.mha.gov.in ↗</a>
+          </div>
+          <div class="resource-item">
+            <strong>iCall Mental Health</strong>
+            <span class="phone">📞 9152987821</span>
+            <a href="mailto:icall@tiss.edu">icall@tiss.edu</a>
+            <a href="https://icallhelpline.org" target="_blank">icallhelpline.org ↗</a>
+          </div>
+        </div>
+
+        <div class="resource-group">
+          <h3>🌍 Global</h3>
+          <div class="resource-item">
+            <strong>StopNCII (Image Abuse)</strong>
+            <span class="phone">📞 N/A</span>
+            <a href="mailto:support@stopncii.org">support@stopncii.org</a>
+            <a href="https://stopncii.org" target="_blank">stopncii.org ↗</a>
+          </div>
+          <div class="resource-item">
+            <strong>NCMEC CyberTipline</strong>
+            <span class="phone">📞 1-800-843-5678</span>
+            <a href="mailto:cybertipline@ncmec.org">cybertipline@ncmec.org</a>
+            <a href="https://www.missingkids.org" target="_blank">missingkids.org ↗</a>
+          </div>
+          <div class="resource-item">
+            <strong>Internet Watch Foundation</strong>
+            <span class="phone">📞 N/A</span>
+            <a href="mailto:report@iwf.org.uk">report@iwf.org.uk</a>
+            <a href="https://www.iwf.org.uk" target="_blank">iwf.org.uk ↗</a>
+          </div>
+          <div class="resource-item">
+            <strong>Revenge Porn Helpline (UK)</strong>
+            <span class="phone">📞 0345 6000 459</span>
+            <a href="mailto:help@revengepornhelpline.org.uk">help@revengepornhelpline.org.uk</a>
+            <a href="https://revengepornhelpline.org.uk" target="_blank">revengepornhelpline.org.uk ↗</a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="/static/js/firebase-config.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
