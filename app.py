@@ -87,8 +87,8 @@ def predict():
     with torch.no_grad():
         logits = model(tensor)
         probs  = torch.softmax(logits, dim=1)[0]
-        fake_prob = round(float(probs[1]) * 100, 2)
-        real_prob = round(float(probs[0]) * 100, 2)
+        fake_prob = round(float(probs[0]) * 100, 2)
+        real_prob = round(float(probs[1]) * 100, 2)
         label = "FAKE" if fake_prob > 50 else "REAL"
 
     # Encode image for PDF embedding

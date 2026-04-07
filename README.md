@@ -32,6 +32,41 @@ deepfake_detector/efficientnet_b4_deepfake.pth
 The model expects a 2-class output (real=0, fake=1).
 If no weights file is found, the app runs with untrained random weights.
 
+### 2a. Train on your dataset
+Expected dataset structure:
+```text
+dataset/
+  real/
+    image1.jpg
+    image2.jpg
+  fake/
+    image1.jpg
+    image2.jpg
+```
+
+Or, if you already have separate splits:
+```text
+dataset/
+  train/
+    real/
+    fake/
+  val/
+    real/
+    fake/
+```
+
+Train with an automatic validation split:
+```bash
+python train.py --data-dir dataset --epochs 5 --batch-size 8
+```
+
+Train with separate train/val folders:
+```bash
+python train.py --data-dir dataset/train --val-dir dataset/val --epochs 5 --batch-size 8
+```
+
+This will save `efficientnet_b4_deepfake.pth`, which the Flask app loads automatically.
+
 ### 3. Configure Firebase
 1. Go to https://console.firebase.google.com
 2. Create a project → Add a Web App
