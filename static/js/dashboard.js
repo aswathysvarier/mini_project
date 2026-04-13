@@ -1,5 +1,27 @@
 let currentResult = null;
 let currentFileName = "uploaded_image";
+let preparedUploadFile = null;
+
+async function loadModelStatus() {
+  const statusEl = document.getElementById("model-status");
+  if (!statusEl) return;
+
+  try {
+    const res = await fetch("/model_status");
+    const data = await res.json();
+
+    if (data.model_ready) {
+      statusEl.textContent = `Model ready: ${data.model_name}`;
+      statusEl.style.color = "#1f7a4d";
+    } else {
+      statusEl.textContent = `Model not ready. Add trained weights at ${data.model_path} before analyzing images.`;
+      statusEl.style.color = "#b54708";
+    }
+  } catch (err) {
+    statusEl.textContent = "Could not check model status.";
+    statusEl.style.color = "#b42318";
+  }
+}
 
 function getCurrentUser() {
   if (window.isDemoAuth) {
@@ -55,6 +77,40 @@ function previewImage(event) {
   reader.readAsDataURL(file);
 }
 
+async function prepareUploadFile(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    return file;
+  }
+
+  if (file.size <= 400 * 1024) {
+    return file;
+  }
+
+  const imageBitmap = await createImageBitmap(file);
+  const maxDimension = 960;
+  const scale = Math.min(1, maxDimension / Math.max(imageBitmap.width, imageBitmap.height));
+  const width = Math.max(1, Math.round(imageBitmap.width * scale));
+  const height = Math.max(1, Math.round(imageBitmap.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { alpha: false });
+  context.drawImage(imageBitmap, 0, 0, width, height);
+
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.76));
+  imageBitmap.close();
+
+  if (!blob || blob.size >= file.size) {
+    return file;
+  }
+
+  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+    type: "image/jpeg",
+    lastModified: Date.now()
+  });
+}
+
 const dropZone = document.getElementById("drop-zone");
 dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.style.borderColor = "#0f3460"; });
 dropZone.addEventListener("dragleave", () => { dropZone.style.borderColor = ""; });
@@ -75,15 +131,21 @@ async function analyzeImage() {
   btn.textContent = "Analyzing...";
   btn.disabled = true;
 
-  const formData = new FormData();
-  formData.append("image", fileInput.files[0]);
-
   try {
+    preparedUploadFile = await prepareUploadFile(fileInput.files[0]);
+    const formData = new FormData();
+    formData.append("image", preparedUploadFile);
+
     const res = await fetch("/predict", { method: "POST", body: formData });
     const data = await res.json();
 
     if (data.error) {
       alert("Error: " + data.error);
+      if (res.status === 503) {
+        const section = document.getElementById("result-section");
+        section.classList.add("hidden");
+        await loadModelStatus();
+      }
       return;
     }
 
@@ -146,3 +208,4 @@ async function downloadReport() {
 }
 
 guardDashboardAccess();
+loadModelStatus();

@@ -5,7 +5,6 @@ from torchvision import transforms
 from efficientnet_pytorch import EfficientNet
 from PIL import Image
 import io
-import base64
 import os
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -18,12 +17,16 @@ app = Flask(__name__)
 os.environ.setdefault("TORCH_HOME", os.path.join(app.root_path, ".torch"))
 
 # ── Model Setup ──────────────────────────────────────────────────────────────
-MODEL_PATH = "efficientnet_b4_deepfake.pth"
+DEFAULT_MODEL_NAME = "efficientnet-b0"
+DEFAULT_IMAGE_SIZE = 224
+MODEL_PATH = "efficientnet_b0_deepfake.pth"
+DEFAULT_CLASS_NAMES = ["fake", "real"]
+FAKE_DECISION_THRESHOLD = 25.0
 
 class DeepfakeDetector(nn.Module):
     def __init__(self):
         super().__init__()
-        self.model = EfficientNet.from_pretrained('efficientnet-b4')
+        self.model = EfficientNet.from_name(DEFAULT_MODEL_NAME)
         self.model._fc = nn.Linear(self.model._fc.in_features, 2)
 
     def forward(self, x):
@@ -31,18 +34,50 @@ class DeepfakeDetector(nn.Module):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = DeepfakeDetector().to(device)
+if device.type == "cpu":
+    torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
+class_names = DEFAULT_CLASS_NAMES[:]
+model_ready = False
 
 if os.path.exists(MODEL_PATH):
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-    print("Loaded trained model weights.")
+    checkpoint = torch.load(MODEL_PATH, map_location=device)
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["state_dict"])
+        class_names = checkpoint.get("class_names", DEFAULT_CLASS_NAMES)
+        print(f"Loaded trained model weights with classes: {class_names}")
+    else:
+        model.load_state_dict(checkpoint)
+        print("Loaded legacy model weights. Using default class order: ['fake', 'real']")
+    model_ready = True
 else:
     print("No weights found - using untrained model (replace with real weights).")
 
 model.eval()
 
+if model_ready:
+    try:
+        example_input = torch.randn(1, 3, DEFAULT_IMAGE_SIZE, DEFAULT_IMAGE_SIZE, device=device)
+        with torch.inference_mode():
+            model = torch.jit.trace(model, example_input)
+            model = torch.jit.optimize_for_inference(model)
+        print("Optimized model for faster inference.")
+    except Exception as error:
+        print(f"Skipping inference optimization: {error}")
+
+
+def extract_probabilities(probs, labels):
+    probabilities = {}
+    for index, class_name in enumerate(labels):
+        probabilities[class_name.lower()] = round(float(probs[index]) * 100, 2)
+
+    fake_prob = probabilities.get("fake", 0.0)
+    real_prob = probabilities.get("real", 0.0)
+    label = "FAKE" if fake_prob >= FAKE_DECISION_THRESHOLD else "REAL"
+    return real_prob, fake_prob, label
+
 # ── Preprocessing ─────────────────────────────────────────────────────────────
 transform = transforms.Compose([
-    transforms.Resize((380, 380)),        # EfficientNet-B4 native input size
+    transforms.Resize((DEFAULT_IMAGE_SIZE, DEFAULT_IMAGE_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize(
         mean=[0.485, 0.456, 0.406],       # ImageNet mean
@@ -75,8 +110,21 @@ def index():
 def dashboard():
     return render_template("dashboard.html")
 
+@app.route("/model_status")
+def model_status():
+    return jsonify({
+        "model_ready": model_ready,
+        "model_name": DEFAULT_MODEL_NAME,
+        "model_path": MODEL_PATH,
+    })
+
 @app.route("/predict", methods=["POST"])
 def predict():
+    if not model_ready:
+        return jsonify({
+            "error": f"Model weights not loaded. Add trained weights at '{MODEL_PATH}' before analyzing images."
+        }), 503
+
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
@@ -84,23 +132,18 @@ def predict():
     img = Image.open(file.stream).convert("RGB")
     tensor = transform(img).unsqueeze(0).to(device)
 
-    with torch.no_grad():
+    with torch.inference_mode():
         logits = model(tensor)
         probs  = torch.softmax(logits, dim=1)[0]
-        fake_prob = round(float(probs[0]) * 100, 2)
-        real_prob = round(float(probs[1]) * 100, 2)
-        label = "FAKE" if fake_prob > 50 else "REAL"
-
-    # Encode image for PDF embedding
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    img_b64 = base64.b64encode(buf.getvalue()).decode()
+        real_prob, fake_prob, label = extract_probabilities(probs, class_names)
 
     return jsonify({
         "label":     label,
         "fake_prob": fake_prob,
         "real_prob": real_prob,
-        "image_b64": img_b64
+        "class_names": class_names,
+        "model_ready": model_ready,
+        "fake_threshold": FAKE_DECISION_THRESHOLD
     })
 
 @app.route("/generate_report", methods=["POST"])
@@ -150,8 +193,8 @@ def generate_report():
         ["Prediction",   label],
         ["Fake Probability",  f"{fake_prob}%"],
         ["Real Probability",  f"{real_prob}%"],
-        ["Model",        "EfficientNet-B4"],
-        ["Input Size",   "380 × 380 px"],
+        ["Model",        "EfficientNet-B0"],
+        ["Input Size",   "224 × 224 px"],
     ]
     tbl = Table(analysis_data, colWidths=[2*inch, 4.5*inch])
     tbl.setStyle(TableStyle([
